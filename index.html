@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Impayés incendie 12-11 — tournées</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root { --bleu:#12324f; --gris:#5b6b7b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  #map { position:absolute; inset:0; }
+  header { position:absolute; z-index:1000; top:0; left:0; right:0; padding:10px 12px;
+           background:linear-gradient(180deg,rgba(18,50,79,.95),rgba(18,50,79,.82));
+           color:#fff; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  header h1 { font-size:14px; margin:0; font-weight:600; line-height:1.2; }
+  header .sub { font-size:11px; opacity:.8; margin-top:2px; }
+  header button { margin-left:auto; background:rgba(255,255,255,.16); color:#fff; border:0; padding:8px 12px;
+                  border-radius:20px; font-size:12px; font-weight:600; }
+  #panel { position:absolute; z-index:1000; left:0; right:0; bottom:0; max-height:62vh; overflow:auto;
+           background:#fff; border-radius:16px 16px 0 0; box-shadow:0 -4px 20px rgba(0,0,0,.18);
+           transform:translateY(calc(100% - 118px)); transition:transform .22s ease; padding-bottom:8px; }
+  #panel.open { transform:translateY(0); }
+  #grab { padding:8px 0 4px; text-align:center; }
+  #grab span { display:inline-block; width:44px; height:4px; border-radius:2px; background:#c9d2da; }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:6px 12px 10px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:0 0 auto; border:1px solid #dde3e9; background:#f7f9fb; border-radius:12px; padding:7px 10px;
+          font-size:11px; color:#22364a; line-height:1.25; }
+  .chip b { display:block; font-size:12px; }
+  .chip.off { opacity:.42; }
+  .chip .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  #liste { padding:0 12px 14px; }
+  .row { display:flex; gap:10px; padding:10px 0; border-top:1px solid #eef2f5; align-items:flex-start; }
+  .row .num { flex:0 0 24px; height:24px; border-radius:50%; color:#fff; font-size:12px; font-weight:700;
+              display:flex; align-items:center; justify-content:center; }
+  .row .txt { flex:1; min-width:0; }
+  .row .n { font-size:13px; font-weight:600; color:#12222f; }
+  .row .a { font-size:11px; color:var(--gris); margin-top:1px; }
+  .row .m { font-size:12px; font-weight:700; color:#b23b3b; white-space:nowrap; }
+  .row .act { display:flex; gap:8px; margin-top:6px; }
+  .row .act a { font-size:11px; text-decoration:none; padding:5px 9px; border-radius:8px; background:#eef4fa; color:#12324f; font-weight:600; }
+  .row .act a.call { background:#eaf7ee; color:#1c6b34; }
+  .leaflet-popup-content { margin:12px 14px; font-size:12px; }
+  .pop h3 { margin:0 0 2px; font-size:14px; }
+  .pop .amt { color:#b23b3b; font-weight:700; font-size:13px; }
+  .pop .adr { color:#5b6b7b; margin:4px 0 8px; }
+  .pop a.btn { display:inline-block; margin:6px 6px 0 0; padding:7px 11px; border-radius:8px;
+               background:#12324f; color:#fff; text-decoration:none; font-size:12px; font-weight:600; }
+  .pin { color:#fff; font-weight:700; font-size:11px; text-align:center; line-height:22px;
+         width:22px; height:22px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.4); }
+  footer { font-size:10px; color:#8a99a8; text-align:center; padding:6px 0 10px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<header>
+  <div>
+    <h1>Impayés incendie — tournées</h1>
+    <div class="sub" id="sub"></div>
+  </div>
+  <button id="toggle">Liste</button>
+</header>
+<div id="panel">
+  <div id="grab"><span></span></div>
+  <div class="chips" id="chips"></div>
+  <div id="liste"></div>
+  <footer>Base TPMC Riom · ordre de passage calculé par secteur</footer>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+const DATA = {"points": [{"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 1, "id": "09974", "n": "LM INSTITUT", "a": "22 RUE DE L'HOTEL DE VILLE", "cp": "63200", "v": "RIOM", "m": 53.4, "f": ["F2610087"], "r": 20, "k": "MME LACHEZE MAGALI   Gérante", "t": "04 73 97 82 72", "p": "06 22 48 84 33", "lat": 45.893753, "lon": 3.115448}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 2, "id": "10332", "n": "GEXPERTIZ", "a": "41 AVENUE DE CHATELGUYON", "cp": "63200", "v": "RIOM", "m": 321.0, "f": ["F2606176"], "r": 113, "k": "M. PERRIN DE NEVE", "t": "04 73 38 23 80", "p": "", "lat": 45.898926, "lon": 3.10577}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 3, "id": "08634", "n": "DANY AUTO", "a": "CHEMIN DU PEYROUX", "cp": "63200", "v": "MOZAC", "m": 296.4, "f": ["F2610082"], "r": 21, "k": "M. GIRAUD", "t": "", "p": "06.73.68.05.56", "lat": 45.891533, "lon": 3.077026}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 4, "id": "02172", "n": "2G PUBLICITE", "a": "117 RUE DES GARDELLES", "cp": "63200", "v": "MALAUZAT", "m": 714.48, "f": ["F2609139"], "r": 23, "k": "DOMINIQUE", "t": "04.73.64.97.27", "p": "", "lat": 45.887067, "lon": 3.068241}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 5, "id": "11069", "n": "SLA", "a": "4 RUE HENRI POURRAT", "cp": "63140", "v": "CHATELGUYON", "m": 30.0, "f": ["F2511055"], "r": 357, "k": "Vincent Argillier", "t": "", "p": "06 74 35 35 95", "lat": 45.91676, "lon": 3.062614}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 6, "id": "09487", "n": "LAEG", "a": "6 CHEMIN DES ANES", "cp": "63410", "v": "LOUBEYRAT", "m": 120.0, "f": ["F2512174"], "r": 309, "k": "M. CELLIER Bertrand Gérant", "t": "", "p": "06 64 85 50 79", "lat": 45.923813, "lon": 3.017675}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 7, "id": "09868", "n": "M.M.G.", "a": "20 Rue du stade", "cp": "63200", "v": "SAINT BONNET PRES RIOM", "m": 239.04, "f": ["F2510242"], "r": 380, "k": "MARTIAL MORGEAT", "t": "04.43.13.49.49", "p": "06.80.24.35.40", "lat": 45.934762, "lon": 3.108093}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 8, "id": "10166", "n": "LES BRAYAUDS", "a": "40 RUE DE LA REPUBLIQUE", "cp": "63200", "v": "SAINT BONNET PRES RIOM", "m": 168.0, "f": ["F2608047"], "r": 85, "k": "Mme ESTIVALS", "t": "04 73 63 36 75", "p": "06 87 70 81 73", "lat": 45.929403, "lon": 3.111894}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 9, "id": "06439", "n": "AUVERGNE BIO DISTRIBUTION", "a": "RUE DE BRETAGNE", "cp": "63460", "v": "COMBRONDE", "m": 3.0, "f": ["F2511085"], "r": 330, "k": "M. PIONIN Directeur", "t": "04.63.85.80.18", "p": "", "lat": 45.982718, "lon": 3.101549}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 10, "id": "02531", "n": "GARAGE SELLES", "a": "151 AVENUE ETIENNE CLEMENTEL", "cp": "63460", "v": "COMBRONDE", "m": 420.48, "f": ["F2510005", "F2511041"], "r": 400, "k": "", "t": "04.73.97.10.15", "p": "", "lat": 45.985158, "lon": 3.087137}, {"s": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "c": "e63946", "o": 11, "id": "06467", "n": "TAXI LABOISSE", "a": "LES GRAVEROLLES", "cp": "63440", "v": "ST PARDOUX", "m": 129.43, "f": ["F2506169"], "r": 496, "k": "M. GIRARD", "t": "04.73.97.56.86", "p": "06.58.04.02.53", "lat": 46.061563, "lon": 2.978918}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 1, "id": "02573", "n": "GOIGOUX PIERRE", "a": "Pompignat", "cp": "63119", "v": "CHATEAUGAY", "m": 632.59, "f": ["F2505130"], "r": 505, "k": "Pierre Goigoux", "t": "04.73.25.00.08", "p": "06.11.77.61.99", "lat": 45.84982, "lon": 3.102667}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 2, "id": "11317", "n": "SIVAS AUTO PNEUS", "a": "18 rue de l'artisanat", "cp": "63119", "v": "CHATEAUGAY", "m": 564.0, "f": ["F2506026"], "r": 519, "k": "M. STAFUKA Ermal", "t": "04 63 22 47 50", "p": "06 43 14 65 14", "lat": 45.845521, "lon": 3.107023}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 3, "id": "10118", "n": "LA FAK", "a": "5 RUE VERTE", "cp": "63118", "v": "CEBAZAT", "m": 211.74, "f": ["F2605057"], "r": 167, "k": "Florent JACQUOT", "t": "04 73 62 73 32", "p": "", "lat": 45.840625, "lon": 3.117792}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 4, "id": "10120", "n": "ELEGANCE COIFFURE", "a": "5 RUE VERTE", "cp": "63118", "v": "CEBAZAT", "m": 57.42, "f": ["F2503003"], "r": 612, "k": "M. REZIG Yanis", "t": "", "p": "07.58.87.62.38", "lat": 45.840625, "lon": 3.117792}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 5, "id": "08834", "n": "A M P", "a": "9 RUE RENE PANHARD", "cp": "63118", "v": "CEBAZAT", "m": 492.0, "f": ["F2606238"], "r": 128, "k": "Julien CHALBOS", "t": "04 73 25 97 85", "p": "06 42 21 26 60", "lat": 45.836451, "lon": 3.115533}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 6, "id": "10417", "n": "AU BOUT DU REVE", "a": "7 AVENUE DU 8 MAI", "cp": "63118", "v": "CEBAZAT", "m": 6.0, "f": ["F2606169"], "r": 114, "k": "Mme CHARLOT Jenifer", "t": "", "p": "06.68.20.82.73 perso", "lat": 45.83042, "lon": 3.103035}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 7, "id": "02748", "n": "LE VIGOSCHE", "a": "2 RUE DU CHATEAU", "cp": "63119", "v": "CHATEAUGAY", "m": 206.4, "f": ["F2609115"], "r": 27, "k": "M. GAILLE", "t": "04.73.87.24.42", "p": "06.74.30.36.33  David PERREIRA", "lat": 45.850219, "lon": 3.086209}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 8, "id": "09035", "n": "DEAT PAYSAGES", "a": "Route d'Argnat", "cp": "63530", "v": "SAYAT", "m": 374.4, "f": ["F2610024"], "r": 29, "k": "", "t": "04 73 60 56 34", "p": "", "lat": 45.835314, "lon": 3.04904}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 9, "id": "10964", "n": "LE CANTOU", "a": "21 RUE DE LA REPUBLIQUE", "cp": "63720", "v": "ENNEZAT", "m": 28.2, "f": ["F2503036"], "r": 603, "k": "M. BOUBON", "t": "", "p": "06.43.41.32.52", "lat": 45.897738, "lon": 3.223356}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 10, "id": "02240", "n": "RESTAURANT DU PONT", "a": "ROUTE DU PONT", "cp": "63350", "v": "JOZE", "m": 408.86, "f": ["F2505009"], "r": 501, "k": "Mathieu DUCHER", "t": "04.73.70.20.10", "p": "06 98 14 04 38", "lat": 45.860892, "lon": 3.302437}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 11, "id": "10816", "n": "1, 2, 3 ETOILE", "a": "2 AVENUE DE LA GARE", "cp": "63430", "v": "PONT DU CHATEAU", "m": 121.8, "f": ["F2609054"], "r": 34, "k": "MME DA SILVA/ MME RENARD", "t": "", "p": "06.60.19.68.31/07.61.99.63.45", "lat": 45.794554, "lon": 3.257624}, {"s": "S2 · Cebazat / Pont Du Chateau / Sayat", "c": "1d70b8", "o": 12, "id": "11283", "n": "Château du Serpolet", "a": "2 rue du Serpolet", "cp": "63430", "v": "PONT DU CHATEAU", "m": 282.6, "f": ["F2607130"], "r": 105, "k": "Nicolas Peyragrosse", "t": "", "p": "07 72 37 91 56", "lat": 45.795737, "lon": 3.244979}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 1, "id": "11526", "n": "SOFRA GRILL RESTAURANT", "a": "129 BVD ETIENNE CLEMENTEL", "cp": "63100", "v": "CLERMONT FERRAND", "m": 63.0, "f": ["F2602079"], "r": 230, "k": "M. UNER Dirigeant", "t": "", "p": "06 62 64 74 23", "lat": 45.802643, "lon": 3.110388}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 2, "id": "11656", "n": "LA BOUTIQUE DES ARTISANS", "a": "", "cp": "", "v": "CLERMONT FERRAND", "m": 282.0, "f": ["F2610238"], "r": 17, "k": "M. DENOUETTE", "t": "", "p": "06.31.22.56.38", "lat": 45.786671, "lon": 3.107055}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 3, "id": "11359", "n": "AUM'LOC (ADA'LOCATION)", "a": "79 avenue de L'union", "cp": "63000", "v": "CLERMONT FERRAND", "m": 177.84, "f": ["F2607094"], "r": 111, "k": "Mr BACHELET", "t": "04 73 14 05 58", "p": "", "lat": 45.780895, "lon": 3.10334}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 4, "id": "02870", "n": "ACRA", "a": "1 RUE DE LA CITE", "cp": "63000", "v": "CLERMONT FERRAND", "m": 151.8, "f": ["F2604061"], "r": 177, "k": "M. MOHAMED", "t": "", "p": "06.63.21.28.59", "lat": 45.781182, "lon": 3.099748}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 5, "id": "11551", "n": "CABINET LIBERAL MOREAU-PERNET", "a": "2 Rue Michel ROCARD", "cp": "63000", "v": "CLERMONT FERRAND", "m": 156.0, "f": ["F2605015"], "r": 182, "k": "Mme MOREAU-PERNET", "t": "", "p": "06 89 21 87 29", "lat": 45.772221, "lon": 3.086489}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 6, "id": "11389", "n": "CABINET IKIHORA", "a": "20 Av. de Royat", "cp": "63400", "v": "CHAMALIERES", "m": 56.4, "f": ["F2610255"], "r": 13, "k": "Cecile CARATTO", "t": "04 73 37 30 26", "p": "06 31 80 60 26", "lat": 45.77607, "lon": 3.069829}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 7, "id": "02239", "n": "LA CIGALE", "a": "4 RUE DU PONT DE LA GRAVIERE", "cp": "63400", "v": "CHAMALIERES", "m": 168.0, "f": ["F2606050"], "r": 131, "k": "M. DA SILVA", "t": "04.73.37.33.35", "p": "06.62.71.69.51", "lat": 45.775764, "lon": 3.066437}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 8, "id": "10206", "n": "MONTMARTIN CARROSSERIE ALU", "a": "8 Rue Gutenberg", "cp": "63100", "v": "CLERMONT-FERRAND", "m": 190.68, "f": ["F2610063"], "r": 22, "k": "Christophe Montmartin", "t": "04 43 55 21 57", "p": "06 28 20 28 06", "lat": 45.782576, "lon": 3.125281}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 9, "id": "10742", "n": "LA SEIGNEURIE", "a": "68 Rue Chappes", "cp": "63100", "v": "CLERMONT-FERRAND", "m": 67.8, "f": ["F2502140"], "r": 617, "k": "Pascale Peirera", "t": "", "p": "06 34 32 19 76", "lat": 45.786895, "lon": 3.127416}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 10, "id": "09897", "n": "SF CONCEPT", "a": "61 RUE JULES VERNE", "cp": "63100", "v": "CLERMONT FERRAND", "m": 94.78, "f": ["F2503033"], "r": 604, "k": "M. FERNANDES Simon   Gérant", "t": "04 73 92 71 40", "p": "", "lat": 45.78785, "lon": 3.138095}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 11, "id": "11571", "n": "WAY", "a": "9 rue Bernard Palissy", "cp": "63000", "v": "CLERMONT FERRAND", "m": 140.4, "f": ["F2606096"], "r": 147, "k": "Mr KORCHANI", "t": "", "p": "06 18 40 50 66", "lat": 45.788849, "lon": 3.13797}, {"s": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "c": "2a9d8f", "o": 12, "id": "10980", "n": "CAFE DE LA PLACE", "a": "6 RUE DE LA REPUBLIQUE", "cp": "63510", "v": "AULNAT", "m": 20.4, "f": ["F2510266"], "r": 355, "k": "M. CUSKUN Gérant", "t": "", "p": "06 69 96 34 00", "lat": 45.794268, "lon": 3.16241}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 1, "id": "10263", "n": "IRIS63", "a": "11 rue de Serbie", "cp": "63000", "v": "CLERMONT FERRAND", "m": 327.3, "f": ["F2609183"], "r": 36, "k": "Ben", "t": "", "p": "07 51 84 13 07", "lat": 45.781781, "lon": 3.079929}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 2, "id": "11480", "n": "MOJITOS BAR", "a": "51 RUE SAINT DOMINIQUE", "cp": "63000", "v": "CLERMONT FERRAND", "m": 137.4, "f": ["F2601096", "F2607083"], "r": 279, "k": "Mr Mamour DIALLO", "t": "", "p": "06 19 39 27 13", "lat": 45.778382, "lon": 3.078214}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 3, "id": "09143", "n": "EXCELSIOR", "a": "12 RUE LAMARTINE", "cp": "63000", "v": "CLERMONT FERRAND", "m": 541.13, "f": ["F2507038", "F2601108"], "r": 460, "k": "M. LOUNACI salarié", "t": "09.51.79.02.14", "p": "06.24.16.80.44", "lat": 45.777648, "lon": 3.080418}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 4, "id": "11061", "n": "CITYA JAUDE IMMOBILIER", "a": "12 RUE BLATIN", "cp": "63000", "v": "CLERMONT FERRAND", "m": 261.6, "f": ["F2608061"], "r": 56, "k": "", "t": "", "p": "", "lat": 45.777011, "lon": 3.080079}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 5, "id": "11632", "n": "LE PARC DE PICOU", "a": "12 rue Blatin", "cp": "63000", "v": "CLERMONT FERRAND", "m": 108.0, "f": ["F2610236"], "r": 17, "k": "Elisa RABEISEN", "t": "", "p": "06 07 33 08 53", "lat": 45.777011, "lon": 3.080079}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 6, "id": "11316", "n": "BAALJUMA", "a": "6 RUE BONNABAUD", "cp": "63000", "v": "CLERMONT FERRAND", "m": 32.52, "f": ["F2606100"], "r": 125, "k": "Mathieu Oleon", "t": "", "p": "06 87 72 65 63", "lat": 45.77621, "lon": 3.07888}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 7, "id": "04237", "n": "CVS ASSURANCES", "a": "19 RUE BONNABAUD", "cp": "63000", "v": "CLERMONT FERRAND", "m": 564.0, "f": ["F2610020"], "r": 29, "k": "", "t": "04.73.91.36.86", "p": "", "lat": 45.775344, "lon": 3.079368}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 8, "id": "10643", "n": "KW ARVEN", "a": "25 AVENUE JULIEN", "cp": "63000", "v": "CLERMONT FERRAND", "m": 104.4, "f": ["F2606022"], "r": 156, "k": "", "t": "04.73.93.97.25", "p": "", "lat": 45.774562, "lon": 3.078666}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 9, "id": "02471", "n": "ANSLA", "a": "1 RUE EUGENE GILBERT", "cp": "63000", "v": "CLERMONT FERRAND", "m": 918.0, "f": ["F2610253"], "r": 13, "k": "M. BERTHIER / M. DROBNJAKOVIC", "t": "04.73.93.90.00", "p": "06.81.61.20.63", "lat": 45.773604, "lon": 3.081305}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 10, "id": "11383", "n": "Heiko Poke", "a": "44 Place de Jaude", "cp": "63000", "v": "CLERMONT FERRAND", "m": 990.0, "f": ["F2609045", "F2609079", "F2609170", "F2609171"], "r": 38, "k": "Mme AFGHOUL", "t": "", "p": "06.33.41.01.07", "lat": 45.775753, "lon": 3.081811}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 11, "id": "11494", "n": "NAPOLI PIZZA", "a": "49 Rue Eugène Gilbert", "cp": "63000", "v": "CLERMONT FERRAND", "m": 596.88, "f": ["F2603093"], "r": 230, "k": "GARCIN Yohan", "t": "", "p": "06 35 22 46 69", "lat": 45.773546, "lon": 3.075842}, {"s": "S4 · Clermont Ferrand", "c": "e07a1f", "o": 12, "id": "11208", "n": "DEUXGROS", "a": "18 rue Max Dormoy", "cp": "63000", "v": "CLERMONT FERRAND", "m": 130.2, "f": ["F2606010"], "r": 156, "k": "M. MAIRESSE Nicolas", "t": "", "p": "06 86 59 90 11", "lat": 45.77009, "lon": 3.081244}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 1, "id": "11366", "n": "SAS L'ilot Pardieu", "a": "1 Rue Eric de CROSMIERES", "cp": "63000", "v": "CLERMONT FERRAND", "m": 6480.0, "f": ["F2608019", "F2608020"], "r": 90, "k": "Mr Nicolas MONERON", "t": "04 73 14 15 75", "p": "06 49 93 75 78", "lat": 45.761079, "lon": 3.135411}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 2, "id": "11332", "n": "AGAETIS", "a": "9 allée Evariste Galois", "cp": "63170", "v": "AUBIERE", "m": 270.0, "f": ["F2609039"], "r": 57, "k": "Mme Séverine BOURDIN", "t": "04 73 35 47 51", "p": "06 75 52 06 08", "lat": 45.759443, "lon": 3.132965}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 3, "id": "09210", "n": "VIVA LA VIDA", "a": "23 AVENUE DE COURNON", "cp": "63170", "v": "AUBIERE", "m": 1198.8, "f": ["F2602019"], "r": 272, "k": "M. HOURDIN Raphaël", "t": "04 28 70 15 25", "p": "06.50.59.50.28", "lat": 45.753399, "lon": 3.136466}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 4, "id": "11414", "n": "ART DE VUE", "a": "34 avenue de Cournon", "cp": "63170", "v": "AUBIERE", "m": 369.0, "f": ["F2511097"], "r": 350, "k": "Cauvin Thierry", "t": "", "p": "06.82.38.00.18", "lat": 45.753141, "lon": 3.135946}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 5, "id": "09178", "n": "L'ESPACE BUREAU", "a": "58 AVENUE DU ROUSSILLON", "cp": "63170", "v": "AUBIERE", "m": 189.0, "f": ["F2512079"], "r": 313, "k": "M. HENRY BRICE", "t": "04.73.69.42.21", "p": "07.60.31.12.05", "lat": 45.748142, "lon": 3.134958}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 6, "id": "11007", "n": "HB D'ORIENT", "a": "7 rue Louis Blériot", "cp": "63800", "v": "COURNON D'AUVERGNE", "m": 75.6, "f": ["F2609080"], "r": 30, "k": "M. Rabbouz El Mahjoud", "t": "", "p": "07 87 87 66 10", "lat": 45.749264, "lon": 3.163247}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 7, "id": "11250", "n": "Le Levant", "a": "24-28 Rue de Sarliève", "cp": "63800", "v": "COURNON D'AUVERGNE", "m": 596.4, "f": ["F2606162"], "r": 136, "k": "David PAULIAT", "t": "", "p": "07 69 38 93 76", "lat": 45.740223, "lon": 3.162506}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 8, "id": "01015", "n": "DOME TOITURE", "a": "4 RUE DES ACILLOUX", "cp": "63800", "v": "COURNON D'AUVERGNE", "m": 52.8, "f": ["F2610033"], "r": 28, "k": "M. RABATEL FRANCK", "t": "04.73.77.74.09", "p": "", "lat": 45.731273, "lon": 3.180575}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 9, "id": "11284", "n": "GONGBATH VIBRATION", "a": "7 RUE DES PALES", "cp": "63540", "v": "ROMAGNAT", "m": 63.6, "f": ["F2504057"], "r": 574, "k": "Mme Valérie PETIT (Présidente)", "t": "", "p": "06.51.95.56.73", "lat": 45.741229, "lon": 3.098295}, {"s": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "c": "7b3fa0", "o": 10, "id": "10416", "n": "SD SPORT", "a": "14 RUE DE LA CERISERAIE", "cp": "63110", "v": "BEAUMONT", "m": 141.0, "f": ["F2606006"], "r": 105, "k": "", "t": "", "p": "06 52 36 39 57", "lat": 45.752288, "lon": 3.078005}, {"s": "S6 · Le Crest / Veyre Monton / St Amant Tallende", "c": "b8860b", "o": 1, "id": "08720", "n": "DOMAINE DU VAL D'AUZON", "a": "ROUTE DE LA ROCHE BLANCHE", "cp": "63450", "v": "LE CREST", "m": 580.2, "f": ["F2605048"], "r": 167, "k": "MME BREUIL CORINNE", "t": "04.73.69.31.52", "p": "06.67.33.38.19", "lat": 45.692407, "lon": 3.133101}, {"s": "S6 · Le Crest / Veyre Monton / St Amant Tallende", "c": "b8860b", "o": 2, "id": "03279", "n": "ETS HEER", "a": "1 RUE MICKAEL FARADAY", "cp": "63960", "v": "VEYRE MONTON", "m": 121.32, "f": ["F2502121"], "r": 619, "k": "HEER FRANTZ", "t": "04.73.69.71.84", "p": "", "lat": 45.688604, "lon": 3.171928}, {"s": "S6 · Le Crest / Veyre Monton / St Amant Tallende", "c": "b8860b", "o": 3, "id": "07742", "n": "DESCHAMPS CHRISTIAN", "a": "29 PLACE DU DOCTEUR DARTEYRE", "cp": "63450", "v": "ST AMANT TALLENDE", "m": 53.4, "f": ["F2608072"], "r": 54, "k": "", "t": "04.73.39.38.05", "p": "06.88.23.91.13", "lat": 45.669524, "lon": 3.107785}, {"s": "S6 · Le Crest / Veyre Monton / St Amant Tallende", "c": "b8860b", "o": 4, "id": "11020", "n": "GARAGE PEREIRA", "a": "Zone artisanale Tourtelle", "cp": "63450", "v": "SAINT SATURNIN", "m": 120.0, "f": ["F2610240"], "r": 16, "k": "Mr PEREIRA", "t": "04 73 39 41 95", "p": "", "lat": 45.659516, "lon": 3.073755}, {"s": "S7 · Vichy / Luzillat / Charmeil", "c": "2f6f3e", "o": 1, "id": "06262", "n": "PERISSEL", "a": "6 RUE DU RUISSEAU", "cp": "63350", "v": "LUZILLAT", "m": 151.56, "f": ["F2610030"], "r": 28, "k": "M. PERISSEL", "t": "04.73.73.80.68", "p": "06.61.35.21.99", "lat": 45.958244, "lon": 3.368599}, {"s": "S7 · Vichy / Luzillat / Charmeil", "c": "2f6f3e", "o": 2, "id": "10890", "n": "SUD", "a": "88 RUE DE PARIS", "cp": "03200", "v": "VICHY", "m": 405.0, "f": ["F2503005"], "r": 612, "k": "M. DAHMANI Abdelmadjid", "t": "", "p": "07 82 76 82 74", "lat": 46.126769, "lon": 3.429377}, {"s": "S7 · Vichy / Luzillat / Charmeil", "c": "2f6f3e", "o": 3, "id": "11185", "n": "INDIA 03", "a": "3 Place de la Gare", "cp": "03200", "v": "VICHY", "m": 237.7, "f": ["F2602015"], "r": 272, "k": "Mr MONTIGNY", "t": "04 70 30 28 91", "p": "07 61 35 01 02", "lat": 46.126723, "lon": 3.429776}, {"s": "S7 · Vichy / Luzillat / Charmeil", "c": "2f6f3e", "o": 4, "id": "10870", "n": "CELLAIS", "a": "12 ROUTE DE SAINT POURCAIN", "cp": "03110", "v": "CHARMEIL", "m": 45.0, "f": ["F2501014"], "r": 623, "k": "MME CELLIER", "t": "", "p": "06.68.84.00.05", "lat": 46.156752, "lon": 3.392743}, {"s": "S8 · Orbeil / Issoire", "c": "c2185b", "o": 1, "id": "02967", "n": "CRAPA' HUTTE", "a": "DOMAINE DE MOIDAS", "cp": "63500", "v": "ORBEIL", "m": 654.6, "f": ["F2605034"], "r": 145, "k": "M. PRADIER LAURENT", "t": "04.73.96.10.10/04.73.39.85.50", "p": "06.80.08.41.04", "lat": 45.579191, "lon": 3.256671}, {"s": "S8 · Orbeil / Issoire", "c": "c2185b", "o": 2, "id": "11443", "n": "AK DISTRIBUTION", "a": "CENTRE COMMERCIAL CARREFOUR", "cp": "63500", "v": "ISSOIRE", "m": 126.0, "f": ["F2510307"], "r": 370, "k": "M. KOC Gérant", "t": "", "p": "06 32 93 64 25", "lat": 45.542679, "lon": 3.249069}, {"s": "S9 · Le Mont Dore / La Bourboule", "c": "546e7a", "o": 1, "id": "10257", "n": "LE BOEUF DANS L ASSIETTE", "a": "9 Place Charles de Gaulle", "cp": "63240", "v": "MONT DORE", "m": 240.0, "f": ["F2501060"], "r": 659, "k": "Jean Pierre Blary", "t": "04 73 65 01 23", "p": "06 14 31 33 99", "lat": 45.575667, "lon": 2.808477}, {"s": "S9 · Le Mont Dore / La Bourboule", "c": "546e7a", "o": 2, "id": "11515", "n": "AU CHALET DE NEO", "a": "5 RUE SAUVAGNAT", "cp": "63240", "v": "LE MONT DORE", "m": 144.0, "f": ["F2610246"], "r": 15, "k": "Mme BRUNO", "t": "04 73 21 80 57", "p": "06 37 08 03 85", "lat": 45.574584, "lon": 2.809628}, {"s": "S9 · Le Mont Dore / La Bourboule", "c": "546e7a", "o": 3, "id": "10388", "n": "CIE ND", "a": "3 RUE MEYNNADIER", "cp": "63240", "v": "LE MONT DORE", "m": 46.2, "f": ["F2602035"], "r": 267, "k": "Mme Corinne COMPTDAER", "t": "", "p": "06 75 63 72 54", "lat": 45.574406, "lon": 2.809322}, {"s": "S9 · Le Mont Dore / La Bourboule", "c": "546e7a", "o": 4, "id": "10833", "n": "LE CHALET DE L'OURS", "a": "98 QUAI FERON", "cp": "63150", "v": "LA BOURBOULE", "m": 24.0, "f": ["F2501058"], "r": 659, "k": "Samuel Rodriguez", "t": "04 73 65 04 69", "p": "06 14 31 33 99", "lat": 45.588532, "lon": 2.742562}, {"s": "S10 · Ussel / Riom Es Montagnes / Neuvic", "c": "5d4037", "o": 1, "id": "09073", "n": "SOLIDARITE DES TURCS D'USSEL", "a": "15 CHEMIN DE LA BORDE", "cp": "19200", "v": "USSEL", "m": 172.8, "f": ["F2606114"], "r": 146, "k": "M. KESKIN ALI", "t": "05.55.72.28.30", "p": "06 22 05 51 81", "lat": 45.559219, "lon": 2.304184}, {"s": "S10 · Ussel / Riom Es Montagnes / Neuvic", "c": "5d4037", "o": 2, "id": "03790", "n": "VIGNAL-ALBERT-VERGEADE", "a": "10 BOULEVARD DE LA PRADE", "cp": "19200", "v": "USSEL", "m": 51.6, "f": ["F2609011"], "r": 63, "k": "M. VIGNAL", "t": "05.55.95.81.32", "p": "", "lat": 45.548639, "lon": 2.313034}, {"s": "S10 · Ussel / Riom Es Montagnes / Neuvic", "c": "5d4037", "o": 3, "id": "04431", "n": "HOTEL DU LAC", "a": "LA PLAGE", "cp": "19160", "v": "NEUVIC", "m": 425.52, "f": ["F2609010"], "r": 63, "k": "MME WATSON", "t": "05.55.95.81.43", "p": "", "lat": 45.387369, "lon": 2.291628}, {"s": "S10 · Ussel / Riom Es Montagnes / Neuvic", "c": "5d4037", "o": 4, "id": "10508", "n": "COULEURS CANTAL", "a": "1 RUE DU 11 NOVEMBRE", "cp": "15400", "v": "RIOM ES MONTAGNES", "m": 219.0, "f": ["F2603106"], "r": 225, "k": "", "t": "", "p": "06 72 03 12 06", "lat": 45.281048, "lon": 2.65973}, {"s": "S10 · Ussel / Riom Es Montagnes / Neuvic", "c": "5d4037", "o": 5, "id": "00950", "n": "UDAF DE LA CORREZE", "a": "12 PLACE MARTIAL BRIGOULEIX", "cp": "19003", "v": "TULLE CEDEX", "m": 640.8, "f": ["F2609185"], "r": 14, "k": "MME BEYTOUT", "t": "05.55.29.99.86", "p": "", "lat": 45.26488, "lon": 1.769445}], "secteurs": [{"nom": "S1 · Riom / Saint Bonnet Pres Riom / Combronde", "couleur": "e63946", "n": 11, "du": 2495.23}, {"nom": "S2 · Cebazat / Pont Du Chateau / Sayat", "couleur": "1d70b8", "n": 12, "du": 3386.01}, {"nom": "S3 · Clermont Ferrand / Chamalieres / Aulnat", "couleur": "2a9d8f", "n": 12, "du": 1569.1}, {"nom": "S4 · Clermont Ferrand", "couleur": "e07a1f", "n": 12, "du": 4711.43}, {"nom": "S5 · Aubiere / Cournon D Auvergne / Beaumont", "couleur": "7b3fa0", "n": 10, "du": 9436.2}, {"nom": "S6 · Le Crest / Veyre Monton / St Amant Tallende", "couleur": "b8860b", "n": 4, "du": 874.92}, {"nom": "S7 · Vichy / Luzillat / Charmeil", "couleur": "2f6f3e", "n": 4, "du": 839.26}, {"nom": "S8 · Orbeil / Issoire", "couleur": "c2185b", "n": 2, "du": 780.6}, {"nom": "S9 · Le Mont Dore / La Bourboule", "couleur": "546e7a", "n": 4, "du": 454.2}, {"nom": "S10 · Ussel / Riom Es Montagnes / Neuvic", "couleur": "5d4037", "n": 5, "du": 1509.72}], "total": 26056.67};
+// les libellés viennent de la base client : on échappe avant toute injection HTML
+const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const eur = v => v.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+const map = L.map('map', {zoomControl:false}).setView([45.78,3.12], 10);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+document.getElementById('sub').textContent =
+  DATA.points.length + ' clients · ' + eur(DATA.total) + ' · ' + DATA.secteurs.length + ' secteurs';
+
+const layers = {};
+const markers = {};
+DATA.secteurs.forEach(s => { layers[s.nom] = L.layerGroup().addTo(map); });
+
+function popupHTML(p) {
+  const tel = (p.p || p.t || '').replace(/[^0-9+]/g,'');
+  return `<div class="pop">
+    <h3>${esc(p.n)}</h3>
+    <div class="amt">${eur(p.m)} · ${esc(p.f.join(', '))}</div>
+    <div class="adr">${esc(p.a || '')}<br>${esc(p.cp)} ${esc(p.v)}</div>
+    ${p.k ? 'Contact : ' + esc(p.k) + '<br>' : ''}
+    ${p.t ? 'Tél. ' + esc(p.t) + '<br>' : ''}${p.p ? 'Mobile ' + esc(p.p) : ''}
+    <div style="color:#8a99a8;font-size:11px;margin-top:6px">${esc(p.s)} — passage n°${p.o} · retard ${p.r} j</div>
+    <a class="btn" target="_blank" rel="noopener"
+       href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">Itinéraire</a>
+    ${tel ? `<a class="btn" style="background:#1c6b34" href="tel:${tel}">Appeler</a>` : ''}
+  </div>`;
+}
+
+DATA.points.forEach(p => {
+  const ic = L.divIcon({className:'', html:`<div class="pin" style="background:#${p.c}">${p.o}</div>`,
+                        iconSize:[22,22], iconAnchor:[11,11], popupAnchor:[0,-10]});
+  markers[p.id] = L.marker([p.lat,p.lon], {icon:ic}).bindPopup(popupHTML(p)).addTo(layers[p.s]);
+});
+
+const actifs = new Set(DATA.secteurs.map(s => s.nom));
+function renderListe() {
+  const box = document.getElementById('liste');
+  let html = '';
+  DATA.secteurs.filter(s => actifs.has(s.nom)).forEach(s => {
+    const pts = DATA.points.filter(p => p.s === s.nom).sort((a,b)=>a.o-b.o);
+    html += `<div style="margin:14px 0 2px;font-size:12px;font-weight:700;color:#12222f">
+      <span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#${s.couleur};margin-right:6px"></span>
+      ${esc(s.nom)} · ${pts.length} clients · ${eur(s.du)}</div>`;
+    pts.forEach(p => {
+      const tel = (p.p || p.t || '').replace(/[^0-9+]/g,'');
+      html += `<div class="row">
+        <div class="num" style="background:#${p.c}">${p.o}</div>
+        <div class="txt">
+          <div class="n">${esc(p.n)} <span class="m" style="float:right">${eur(p.m)}</span></div>
+          <div class="a">${esc(p.a || '—')} · ${esc(p.cp)} ${esc(p.v)}</div>
+          <div class="act">
+            <a href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Itinéraire</a>
+            ${tel ? `<a class="call" href="tel:${tel}">Appeler</a>` : ''}
+            <a href="#" data-go="${p.id}">Voir</a>
+          </div>
+        </div></div>`;
+    });
+  });
+  box.innerHTML = html;
+  box.querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    const p = DATA.points.find(x => x.id === a.dataset.go);
+    map.setView([p.lat,p.lon], 16);
+    markers[p.id].openPopup();
+    document.getElementById('panel').classList.remove('open');
+  }));
+}
+
+const chips = document.getElementById('chips');
+DATA.secteurs.forEach(s => {
+  const d = document.createElement('div');
+  d.className = 'chip';
+  d.innerHTML = `<b><span class="dot" style="background:#${s.couleur}"></span>${esc(s.nom.split(' · ')[1] || s.nom)}</b>${s.n} clients · ${eur(s.du)}`;
+  d.addEventListener('click', () => {
+    if (actifs.has(s.nom)) { actifs.delete(s.nom); layers[s.nom].remove(); d.classList.add('off'); }
+    else { actifs.add(s.nom); layers[s.nom].addTo(map); d.classList.remove('off');
+           const pts = DATA.points.filter(p => p.s === s.nom);
+           map.fitBounds(L.latLngBounds(pts.map(p => [p.lat, p.lon])), {padding:[45,45], maxZoom:14}); }
+    renderListe();
+  });
+  chips.appendChild(d);
+});
+
+document.getElementById('toggle').addEventListener('click', () => {
+  document.getElementById('panel').classList.toggle('open');
+});
+document.getElementById('grab').addEventListener('click', () => {
+  document.getElementById('panel').classList.toggle('open');
+});
+
+renderListe();
+const b = L.latLngBounds(DATA.points.map(p => [p.lat,p.lon]));
+map.fitBounds(b, {padding:[40,40]});
+window.addEventListener('resize', () => map.invalidateSize());
+window.addEventListener('orientationchange', () => setTimeout(() => map.invalidateSize(), 300));
+
+// position du technicien
+const LocateCtl = L.Control.extend({
+  options: {position:'bottomright'},
+  onAdd: function() {
+    const btn = L.DomUtil.create('div','leaflet-bar leaflet-control');
+    btn.innerHTML = '<a href="#" title="Ma position" style="font-size:17px;line-height:26px;text-align:center;width:30px;height:30px;display:block">◎</a>';
+    btn.onclick = e => { e.preventDefault();
+      navigator.geolocation.getCurrentPosition(pos => {
+        const ll = [pos.coords.latitude, pos.coords.longitude];
+        if (window._me) map.removeLayer(window._me);
+        window._me = L.circleMarker(ll, {radius:8, color:'#fff', weight:3, fillColor:'#1a73e8', fillOpacity:1}).addTo(map);
+        map.setView(ll, 14);
+      }, () => alert('Position indisponible'));
+    };
+    return btn;
+  }
+});
+map.addControl(new LocateCtl());
+</script>
+</body>
+</html>
